@@ -4,6 +4,7 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeRemainingColumn
 from rich.table import Table
 
 from .pipeline import answer_with_context, ingest_pdfs, semantic_search
@@ -14,6 +15,7 @@ console = Console()
 DEFAULT_ZOTERO_STORAGE = Path("/Users/carolinesimpson/Zotero/storage")
 DEFAULT_PARSED = Path("./parsed-pdfs")
 DEFAULT_QDRANT = Path("./qdrant-data")
+DEFAULT_QDRANT_URL = "http://localhost:6333"
 DEFAULT_COLLECTION = "zotero_pdf_chunks"
 DEFAULT_EMBED_MODEL = "nomic-embed-text"
 DEFAULT_CHAT_MODEL = "llama3.2"
@@ -33,22 +35,57 @@ def ingest(
     source: Path = typer.Option(DEFAULT_ZOTERO_STORAGE, help="Root folder containing PDFs."),
     parsed_out: Path = typer.Option(DEFAULT_PARSED, help="Where parsed .txt files are written."),
     qdrant_path: Path = typer.Option(DEFAULT_QDRANT, help="Local path for embedded Qdrant data."),
-    qdrant_url: str | None = typer.Option(None, help="Qdrant server URL (e.g. http://localhost:6333)."),
+    qdrant_url: str | None = typer.Option(
+        DEFAULT_QDRANT_URL,
+        help="Qdrant server URL (e.g. http://localhost:6333).",
+    ),
     collection: str = typer.Option(DEFAULT_COLLECTION, help="Qdrant collection name."),
     embedding_model: str = typer.Option(DEFAULT_EMBED_MODEL, help="Ollama embedding model."),
     ollama_host: str = typer.Option(DEFAULT_OLLAMA_HOST, help="Ollama base URL."),
 ) -> None:
-    stats = _run_or_exit(
-        lambda: ingest_pdfs(
-            source_root=source,
-            parsed_text_root=parsed_out,
-            qdrant_path=qdrant_path,
-            collection_name=collection,
-            embedding_model=embedding_model,
-            ollama_host=ollama_host,
-            qdrant_url=qdrant_url,
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeRemainingColumn(),
+        console=console,
+    ) as progress:
+        pdf_task = progress.add_task("Discovering PDFs", total=1, completed=0)
+        delete_task = progress.add_task("Deleting stale docs", total=1, completed=1, visible=False)
+
+        def on_progress(event: str, current: int, total: int, path: Path | None) -> None:
+            label = path.name if path else ""
+            if event == "start":
+                progress.update(pdf_task, total=max(total, 1), completed=0, description="Scanning PDFs")
+            elif event == "parsing":
+                progress.update(pdf_task, description=f"Parsing {label}")
+            elif event == "indexed":
+                progress.update(pdf_task, completed=current, total=max(total, 1), description=f"Indexed {label}")
+            elif event == "skipped":
+                progress.update(pdf_task, completed=current, total=max(total, 1), description=f"Skipped {label}")
+            elif event == "failed":
+                progress.update(pdf_task, completed=current, total=max(total, 1), description=f"Failed {label}")
+            elif event == "deleting_start":
+                progress.update(delete_task, visible=True, total=max(total, 1), completed=0, description="Deleting stale docs")
+            elif event == "deleting":
+                progress.update(delete_task, completed=current, total=max(total, 1), description=f"Deleting {label}")
+            elif event == "done":
+                progress.update(pdf_task, completed=max(total, 1), total=max(total, 1), description="Ingest complete")
+                progress.update(delete_task, visible=False)
+
+        stats = _run_or_exit(
+            lambda: ingest_pdfs(
+                source_root=source,
+                parsed_text_root=parsed_out,
+                qdrant_path=qdrant_path,
+                collection_name=collection,
+                embedding_model=embedding_model,
+                ollama_host=ollama_host,
+                qdrant_url=qdrant_url,
+                progress_callback=on_progress,
+            )
         )
-    )
     console.print(
         "Seen {seen} PDFs | updated {updated} | skipped {skipped} | deleted {deleted} | indexed chunks {chunks} "
         "into '{collection}'.".format(
@@ -88,7 +125,10 @@ def _print_results(query: str, results: list, limit: int) -> None:
 def search(
     query: str = typer.Argument(..., help="Text query."),
     qdrant_path: Path = typer.Option(DEFAULT_QDRANT, help="Local path for embedded Qdrant data."),
-    qdrant_url: str | None = typer.Option(None, help="Qdrant server URL (e.g. http://localhost:6333)."),
+    qdrant_url: str | None = typer.Option(
+        DEFAULT_QDRANT_URL,
+        help="Qdrant server URL (e.g. http://localhost:6333).",
+    ),
     collection: str = typer.Option(DEFAULT_COLLECTION, help="Qdrant collection name."),
     embedding_model: str = typer.Option(DEFAULT_EMBED_MODEL, help="Ollama embedding model."),
     ollama_host: str = typer.Option(DEFAULT_OLLAMA_HOST, help="Ollama base URL."),
@@ -112,7 +152,10 @@ def search(
 def ask(
     question: str = typer.Argument(..., help="Question to answer from indexed PDFs."),
     qdrant_path: Path = typer.Option(DEFAULT_QDRANT, help="Local path for embedded Qdrant data."),
-    qdrant_url: str | None = typer.Option(None, help="Qdrant server URL (e.g. http://localhost:6333)."),
+    qdrant_url: str | None = typer.Option(
+        DEFAULT_QDRANT_URL,
+        help="Qdrant server URL (e.g. http://localhost:6333).",
+    ),
     collection: str = typer.Option(DEFAULT_COLLECTION, help="Qdrant collection name."),
     embedding_model: str = typer.Option(DEFAULT_EMBED_MODEL, help="Ollama embedding model."),
     chat_model: str = typer.Option(DEFAULT_CHAT_MODEL, help="Ollama chat model."),
@@ -152,7 +195,10 @@ def ask(
 @app.command()
 def shell(
     qdrant_path: Path = typer.Option(DEFAULT_QDRANT, help="Local path for embedded Qdrant data."),
-    qdrant_url: str | None = typer.Option(None, help="Qdrant server URL (e.g. http://localhost:6333)."),
+    qdrant_url: str | None = typer.Option(
+        DEFAULT_QDRANT_URL,
+        help="Qdrant server URL (e.g. http://localhost:6333).",
+    ),
     collection: str = typer.Option(DEFAULT_COLLECTION, help="Qdrant collection name."),
     embedding_model: str = typer.Option(DEFAULT_EMBED_MODEL, help="Ollama embedding model."),
     chat_model: str = typer.Option(DEFAULT_CHAT_MODEL, help="Ollama chat model."),

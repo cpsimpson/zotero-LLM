@@ -7,7 +7,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 import ollama
 from liteparse import LiteParse, ParseError
@@ -190,6 +190,7 @@ def ingest_pdfs(
     qdrant_url: str | None = None,
     state_root: Path | None = None,
     batch_size: int = 16,
+    progress_callback: Callable[[str, int, int, Path | None], None] | None = None,
 ) -> IngestStats:
     source_root = source_root.expanduser().resolve()
     parsed_text_root = parsed_text_root.expanduser().resolve()
@@ -209,6 +210,8 @@ def ingest_pdfs(
     state = _load_state(state_path)
 
     pdfs = discover_pdfs(source_root)
+    if progress_callback:
+        progress_callback("start", 0, len(pdfs), None)
     processed_docs = 0
     skipped_docs = 0
     deleted_docs = 0
@@ -222,7 +225,16 @@ def ingest_pdfs(
     current_pdf_paths = {str(p) for p in pdfs}
     stale_paths = [path for path in state.keys() if path not in current_pdf_paths]
     if stale_paths and qdrant.collection_exists(collection_name):
+        if progress_callback:
+            progress_callback("deleting_start", 0, len(stale_paths), None)
         for stale_pdf_path in stale_paths:
+            if progress_callback:
+                progress_callback(
+                    "deleting",
+                    deleted_docs + 1,
+                    len(stale_paths),
+                    Path(stale_pdf_path),
+                )
             old = state.get(stale_pdf_path, {})
             doc_id = old.get("doc_id")
             if doc_id:
@@ -247,7 +259,9 @@ def ingest_pdfs(
             del state[stale_pdf_path]
             deleted_docs += 1
 
-    for pdf in pdfs:
+    for index, pdf in enumerate(pdfs, start=1):
+        if progress_callback:
+            progress_callback("parsing", index - 1, len(pdfs), pdf)
         mtime_ns, size = _file_sig(pdf)
         state_entry = state.get(str(pdf))
         if (
@@ -256,14 +270,20 @@ def ingest_pdfs(
             and state_entry.get("size") == size
         ):
             skipped_docs += 1
+            if progress_callback:
+                progress_callback("skipped", index, len(pdfs), pdf)
             continue
 
         try:
             parsed = parser.parse(str(pdf), ocr_enabled=True)
         except (ParseError, FileNotFoundError, TimeoutError):
+            if progress_callback:
+                progress_callback("failed", index, len(pdfs), pdf)
             continue
         text = parsed.text.strip()
         if not text:
+            if progress_callback:
+                progress_callback("failed", index, len(pdfs), pdf)
             continue
 
         text_rel = _safe_text_name(pdf, source_root)
@@ -336,8 +356,12 @@ def ingest_pdfs(
 
         processed_docs += 1
         indexed_chunks += len(points)
+        if progress_callback:
+            progress_callback("indexed", index, len(pdfs), pdf)
 
     _save_state(state_path, state)
+    if progress_callback:
+        progress_callback("done", len(pdfs), len(pdfs), None)
     return IngestStats(
         total_pdfs_seen=len(pdfs),
         processed_docs=processed_docs,
