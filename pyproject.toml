@@ -1,0 +1,25 @@
+[project]
+name = "zotero-llm"
+version = "0.1.0"
+description = "Local semantic search over Zotero PDFs using LiteParse, Ollama, and Qdrant"
+requires-python = ">=3.11"
+dependencies = [
+  "liteparse>=1.2.1",
+  "ollama>=0.6.1",
+  "qdrant-client>=1.17.1",
+  "typer>=0.24.1",
+  "rich>=14.3.4",
+]
+
+[project.scripts]
+zotero-llm = "zotero_llm.cli:app"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
