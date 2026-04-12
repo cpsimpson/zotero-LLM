@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import typer
@@ -12,7 +13,10 @@ from .pipeline import answer_with_context, ingest_pdfs, semantic_search
 app = typer.Typer(help="Local semantic PDF search for Zotero storage.")
 console = Console()
 
-DEFAULT_ZOTERO_STORAGE = Path("/Users/carolinesimpson/Zotero/storage")
+# Prefer env override; otherwise use a generic home-relative Zotero default.
+DEFAULT_ZOTERO_STORAGE = Path(
+    os.environ.get("ZOTERO_STORAGE_DIR", str(Path.home() / "Zotero" / "storage"))
+)
 DEFAULT_PARSED = Path("./parsed-pdfs")
 DEFAULT_QDRANT = Path("./qdrant-data")
 DEFAULT_QDRANT_URL = "http://localhost:6333"

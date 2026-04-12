@@ -30,7 +30,8 @@ ollama pull llama3.2
 
 ## 3) Ingest Zotero PDFs
 
-By default this scans recursively in `/Users/carolinesimpson/Zotero/storage`.
+By default this scans recursively in `$HOME/Zotero/storage`.
+Override with `ZOTERO_STORAGE_DIR` or `--source`.
 
 ```bash
 zotero-llm ingest
@@ -98,7 +99,7 @@ zotero-llm shell
 
 ```bash
 zotero-llm ingest \
-  --source /Users/carolinesimpson/Zotero/storage \
+  --source "$HOME/Zotero/storage" \
   --parsed-out ./parsed-pdfs \
   --qdrant-url http://localhost:6333 \
   --qdrant-path ./qdrant-data \
