@@ -59,6 +59,19 @@ zotero-llm ask "Which papers discuss retrieval-augmented generation benchmarks?"
 
 If you omit `--qdrant-url`, the app uses embedded local Qdrant via `--qdrant-path`.
 
+## Service Scripts
+
+Use the helper scripts to start/stop related services together:
+
+```bash
+./scripts/start_services.sh
+./scripts/stop_services.sh
+```
+
+The startup script manages:
+- Qdrant Docker container (`zotero-llm-qdrant` by default)
+- `ollama serve` process (background)
+
 ## 4) Search
 
 ```bash

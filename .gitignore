@@ -5,3 +5,6 @@ __pycache__/
 
 parsed-pdfs/
 qdrant-data/
+qdrant-storage/
+.ollama-serve.pid
+.ollama-serve.log
