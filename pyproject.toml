@@ -2,7 +2,7 @@
 name = "zotero-llm"
 version = "0.1.0"
 description = "Local semantic search over Zotero PDFs using LiteParse, Ollama, and Qdrant"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
   "liteparse>=1.2.1",
   "ollama>=0.6.1",

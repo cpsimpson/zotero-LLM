@@ -32,7 +32,8 @@ def _run_or_exit(fn):
 def ingest(
     source: Path = typer.Option(DEFAULT_ZOTERO_STORAGE, help="Root folder containing PDFs."),
     parsed_out: Path = typer.Option(DEFAULT_PARSED, help="Where parsed .txt files are written."),
-    qdrant_path: Path = typer.Option(DEFAULT_QDRANT, help="Local path for Qdrant data."),
+    qdrant_path: Path = typer.Option(DEFAULT_QDRANT, help="Local path for embedded Qdrant data."),
+    qdrant_url: str | None = typer.Option(None, help="Qdrant server URL (e.g. http://localhost:6333)."),
     collection: str = typer.Option(DEFAULT_COLLECTION, help="Qdrant collection name."),
     embedding_model: str = typer.Option(DEFAULT_EMBED_MODEL, help="Ollama embedding model."),
     ollama_host: str = typer.Option(DEFAULT_OLLAMA_HOST, help="Ollama base URL."),
@@ -45,6 +46,7 @@ def ingest(
             collection_name=collection,
             embedding_model=embedding_model,
             ollama_host=ollama_host,
+            qdrant_url=qdrant_url,
         )
     )
     console.print(
@@ -85,7 +87,8 @@ def _print_results(query: str, results: list, limit: int) -> None:
 @app.command()
 def search(
     query: str = typer.Argument(..., help="Text query."),
-    qdrant_path: Path = typer.Option(DEFAULT_QDRANT, help="Local path for Qdrant data."),
+    qdrant_path: Path = typer.Option(DEFAULT_QDRANT, help="Local path for embedded Qdrant data."),
+    qdrant_url: str | None = typer.Option(None, help="Qdrant server URL (e.g. http://localhost:6333)."),
     collection: str = typer.Option(DEFAULT_COLLECTION, help="Qdrant collection name."),
     embedding_model: str = typer.Option(DEFAULT_EMBED_MODEL, help="Ollama embedding model."),
     ollama_host: str = typer.Option(DEFAULT_OLLAMA_HOST, help="Ollama base URL."),
@@ -98,6 +101,7 @@ def search(
             collection_name=collection,
             embedding_model=embedding_model,
             ollama_host=ollama_host,
+            qdrant_url=qdrant_url,
             limit=limit,
         )
     )
@@ -107,7 +111,8 @@ def search(
 @app.command()
 def ask(
     question: str = typer.Argument(..., help="Question to answer from indexed PDFs."),
-    qdrant_path: Path = typer.Option(DEFAULT_QDRANT, help="Local path for Qdrant data."),
+    qdrant_path: Path = typer.Option(DEFAULT_QDRANT, help="Local path for embedded Qdrant data."),
+    qdrant_url: str | None = typer.Option(None, help="Qdrant server URL (e.g. http://localhost:6333)."),
     collection: str = typer.Option(DEFAULT_COLLECTION, help="Qdrant collection name."),
     embedding_model: str = typer.Option(DEFAULT_EMBED_MODEL, help="Ollama embedding model."),
     chat_model: str = typer.Option(DEFAULT_CHAT_MODEL, help="Ollama chat model."),
@@ -121,6 +126,7 @@ def ask(
             collection_name=collection,
             embedding_model=embedding_model,
             ollama_host=ollama_host,
+            qdrant_url=qdrant_url,
             limit=limit,
         )
     )
@@ -145,7 +151,8 @@ def ask(
 
 @app.command()
 def shell(
-    qdrant_path: Path = typer.Option(DEFAULT_QDRANT, help="Local path for Qdrant data."),
+    qdrant_path: Path = typer.Option(DEFAULT_QDRANT, help="Local path for embedded Qdrant data."),
+    qdrant_url: str | None = typer.Option(None, help="Qdrant server URL (e.g. http://localhost:6333)."),
     collection: str = typer.Option(DEFAULT_COLLECTION, help="Qdrant collection name."),
     embedding_model: str = typer.Option(DEFAULT_EMBED_MODEL, help="Ollama embedding model."),
     chat_model: str = typer.Option(DEFAULT_CHAT_MODEL, help="Ollama chat model."),
@@ -164,6 +171,7 @@ def shell(
                 collection_name=collection,
                 embedding_model=embedding_model,
                 ollama_host=ollama_host,
+                qdrant_url=qdrant_url,
                 limit=limit,
             )
         )

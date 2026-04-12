@@ -4,7 +4,7 @@ Local semantic search and Q&A over PDFs in your Zotero storage using:
 
 - `liteparse` for PDF parsing (with OCR support)
 - local `ollama` embeddings/chat models
-- local `qdrant` vector database
+- `qdrant` vector database (Docker/server recommended; embedded local supported)
 
 ## 1) Install
 
@@ -39,6 +39,26 @@ zotero-llm ingest
 Output text files are written to `./parsed-pdfs` and vectors are stored in `./qdrant-data`.
 This command is incremental: it only re-parses/re-embeds new or modified PDFs, skips unchanged files, and removes vectors for deleted PDFs.
 
+## Recommended: run Qdrant in Docker
+
+```bash
+docker run -d \
+  --name qdrant \
+  -p 6333:6333 \
+  -v "$(pwd)/qdrant-storage:/qdrant/storage" \
+  qdrant/qdrant
+```
+
+Then use `--qdrant-url` with all commands:
+
+```bash
+zotero-llm ingest --qdrant-url http://localhost:6333
+zotero-llm search "transformer interpretability for medical imaging" --qdrant-url http://localhost:6333
+zotero-llm ask "Which papers discuss retrieval-augmented generation benchmarks?" --qdrant-url http://localhost:6333
+```
+
+If you omit `--qdrant-url`, the app uses embedded local Qdrant via `--qdrant-path`.
+
 ## 4) Search
 
 ```bash
@@ -67,6 +87,7 @@ zotero-llm shell
 zotero-llm ingest \
   --source /Users/carolinesimpson/Zotero/storage \
   --parsed-out ./parsed-pdfs \
+  --qdrant-url http://localhost:6333 \
   --qdrant-path ./qdrant-data \
   --collection zotero_pdf_chunks \
   --embedding-model nomic-embed-text \

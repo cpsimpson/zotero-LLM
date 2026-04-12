@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -147,6 +148,12 @@ def _state_file(qdrant_path: Path, collection_name: str) -> Path:
     return qdrant_path / f"{safe_collection}.index_state.json"
 
 
+def _qdrant_client(*, qdrant_path: Path, qdrant_url: str | None) -> QdrantClient:
+    if qdrant_url:
+        return QdrantClient(url=qdrant_url)
+    return QdrantClient(path=str(qdrant_path))
+
+
 def _load_state(state_path: Path) -> dict[str, dict]:
     if not state_path.exists():
         return {}
@@ -180,18 +187,25 @@ def ingest_pdfs(
     collection_name: str,
     embedding_model: str,
     ollama_host: str,
+    qdrant_url: str | None = None,
+    state_root: Path | None = None,
     batch_size: int = 16,
 ) -> IngestStats:
     source_root = source_root.expanduser().resolve()
     parsed_text_root = parsed_text_root.expanduser().resolve()
     qdrant_path = qdrant_path.expanduser().resolve()
     parsed_text_root.mkdir(parents=True, exist_ok=True)
-    qdrant_path.mkdir(parents=True, exist_ok=True)
+    if not qdrant_url:
+        qdrant_path.mkdir(parents=True, exist_ok=True)
+    if state_root is None:
+        state_root = parsed_text_root / ".zotero-llm-state"
+    state_root = state_root.expanduser().resolve()
+    state_root.mkdir(parents=True, exist_ok=True)
 
     parser = LiteParse()
     ollama_client = ollama.Client(host=ollama_host)
-    qdrant = QdrantClient(path=str(qdrant_path))
-    state_path = _state_file(qdrant_path, collection_name)
+    qdrant = _qdrant_client(qdrant_path=qdrant_path, qdrant_url=qdrant_url)
+    state_path = _state_file(state_root, collection_name)
     state = _load_state(state_path)
 
     pdfs = discover_pdfs(source_root)
@@ -292,7 +306,7 @@ def ingest_pdfs(
 
         points: list[models.PointStruct] = []
         for idx, (chunk, vector) in enumerate(zip(chunks, vectors, strict=True)):
-            point_id = hashlib.sha1(f"{doc_id}:{idx}".encode("utf-8")).hexdigest()
+            point_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{doc_id}:{idx}"))
             payload = {
                 "doc_id": doc_id,
                 "chunk_index": idx,
@@ -340,13 +354,18 @@ def semantic_search(
     collection_name: str,
     embedding_model: str,
     ollama_host: str,
+    qdrant_url: str | None = None,
     limit: int = 8,
 ) -> list[SearchResult]:
     client = ollama.Client(host=ollama_host)
-    qdrant = QdrantClient(path=str(qdrant_path.expanduser().resolve()))
+    qdrant = _qdrant_client(
+        qdrant_path=qdrant_path.expanduser().resolve(),
+        qdrant_url=qdrant_url,
+    )
     if not qdrant.collection_exists(collection_name):
+        backend = qdrant_url or str(qdrant_path)
         raise RuntimeError(
-            f"Collection '{collection_name}' not found at {qdrant_path}. "
+            f"Collection '{collection_name}' not found at {backend}. "
             "Run `zotero-llm ingest` first."
         )
 
